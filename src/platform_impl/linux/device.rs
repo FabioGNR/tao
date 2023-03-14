@@ -1,6 +1,6 @@
 use std::{
   os::raw::{c_int, c_uchar},
-  ptr,
+  ptr, rc::Rc, sync::{atomic::{AtomicBool, Ordering}, Arc},
 };
 
 use x11_dl::{xinput2, xlib};
@@ -13,7 +13,7 @@ use crate::{
 use super::keycode_from_scancode;
 
 /// Spawn Device event thread. Only works on x11 since wayland doesn't have such global events.
-pub fn spawn<T>(window_target: &EventLoopWindowTarget<T>, device_tx: glib::Sender<DeviceEvent>) {
+pub fn spawn<T>(window_target: &EventLoopWindowTarget<T>, device_tx: glib::Sender<DeviceEvent>, run: Arc<AtomicBool>) {
   if !window_target.p.is_wayland() {
     std::thread::spawn(move || unsafe {
       let xlib = xlib::Xlib::open().unwrap();
@@ -31,7 +31,7 @@ pub fn spawn<T>(window_target: &EventLoopWindowTarget<T>, device_tx: glib::Sende
 
       #[allow(clippy::uninit_assumed_init)]
       let mut event: xlib::XEvent = std::mem::MaybeUninit::uninit().assume_init();
-      loop {
+      while run.load(Ordering::Relaxed) {
         (xlib.XNextEvent)(display, &mut event);
 
         // XFilterEvent tells us when an event has been discarded by the input method.
@@ -79,6 +79,7 @@ pub fn spawn<T>(window_target: &EventLoopWindowTarget<T>, device_tx: glib::Sende
           _ => {}
         }
       }
+      (xlib.XCloseDisplay)(display);
     });
   }
 }

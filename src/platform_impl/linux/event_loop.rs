@@ -8,7 +8,7 @@ use std::{
   error::Error,
   process,
   rc::Rc,
-  sync::atomic::{AtomicBool, Ordering},
+  sync::{atomic::{AtomicBool, Ordering}, Arc},
   time::Instant,
 };
 
@@ -931,9 +931,9 @@ impl<T: 'static> EventLoop<T> {
     let context = MainContext::default();
     let user_event_tx = self.user_event_tx.clone();
     let (device_tx, device_rx) = glib::MainContext::channel(glib::Priority::default());
-    let run_device_thread = Rc::new(AtomicBool::new(true));
+    let run_device_thread = Arc::new(AtomicBool::new(true));
     let run = run_device_thread.clone();
-    device::spawn(&self.window_target, device_tx);
+    // device::spawn(&self.window_target, device_tx, run.clone());
     device_rx.attach(Some(&context), move |event| {
       if let Err(e) = user_event_tx.send(Event::DeviceEvent {
         device_id: DEVICE_ID,
